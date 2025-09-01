@@ -71,11 +71,20 @@ class AgentManager:
                 'PORT': str(agent.config.port),
                 'OPENAI_API_KEY': agent.config.openai_api_key,
                 'OPENAI_MODEL': agent.config.model,
-                'LOG_LEVEL': 'INFO'
+                'LOG_LEVEL': 'INFO',
+                # Fix MKL threading issues
+                'MKL_NUM_THREADS': '1',
+                'OMP_NUM_THREADS': '1',
+                'OPENBLAS_NUM_THREADS': '1',
+                'NUMEXPR_NUM_THREADS': '1',
+                'VECLIB_MAXIMUM_THREADS': '1',
+                'MKL_THREADING_LAYER': 'GNU'
             })
             
             # Write agent-specific .env file
-            agent_dir = f"../single"  # Path to single agent directory
+            # Get absolute path to single directory (go up to agent-orch root)
+            current_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            agent_dir = os.path.join(current_dir, "single")
             env_file = os.path.join(agent_dir, f".env.{agent_id}")
             
             with open(env_file, 'w') as f:
@@ -85,11 +94,26 @@ class AgentManager:
                 f.write(f"OPENAI_API_KEY={agent.config.openai_api_key}\n")
                 f.write(f"OPENAI_MODEL={agent.config.model}\n")
                 f.write("LOG_LEVEL=INFO\n")
+                # Fix MKL threading issues in env file too
+                f.write("MKL_NUM_THREADS=1\n")
+                f.write("OMP_NUM_THREADS=1\n")
+                f.write("OPENBLAS_NUM_THREADS=1\n")
+                f.write("NUMEXPR_NUM_THREADS=1\n")
+                f.write("VECLIB_MAXIMUM_THREADS=1\n")
+                f.write("MKL_THREADING_LAYER=GNU\n")
             
             # Start the agent process
             cmd = [
                 "python", "main.py"
             ]
+            
+            # Ensure the agent directory exists and is accessible
+            if not os.path.exists(agent_dir):
+                raise ValueError(f"Agent directory not found: {agent_dir}")
+            
+            main_py_path = os.path.join(agent_dir, "main.py")
+            if not os.path.exists(main_py_path):
+                raise ValueError(f"main.py not found in agent directory: {main_py_path}")
             
             process = await asyncio.create_subprocess_exec(
                 *cmd,
@@ -103,12 +127,18 @@ class AgentManager:
             agent.status = AgentStatus.RUNNING
             
             # Wait a moment and check if process is still running
-            await asyncio.sleep(2)
+            await asyncio.sleep(3)
             
             if process.returncode is not None:
                 # Process died immediately
-                stdout, stderr = await process.communicate()
-                error_msg = f"Agent process died: {stderr.decode()}"
+                try:
+                    stdout, stderr = await process.communicate()
+                    stdout_text = stdout.decode() if stdout else "No stdout"
+                    stderr_text = stderr.decode() if stderr else "No stderr"
+                    error_msg = f"Agent process died. Return code: {process.returncode}\nStdout: {stdout_text}\nStderr: {stderr_text}"
+                except:
+                    error_msg = f"Agent process died with return code: {process.returncode}"
+                
                 agent.status = AgentStatus.ERROR
                 agent.error_message = error_msg
                 logger.error(f"Agent {agent_id} failed to start: {error_msg}")
@@ -183,7 +213,9 @@ class AgentManager:
         
         # Clean up env file
         try:
-            env_file = f"../single/.env.{agent_id}"
+            current_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            agent_dir = os.path.join(current_dir, "single")
+            env_file = os.path.join(agent_dir, f".env.{agent_id}")
             if os.path.exists(env_file):
                 os.remove(env_file)
         except Exception as e:
@@ -251,14 +283,20 @@ class AgentManager:
                     response = await client.get(f"{agent.url}/health", timeout=5.0)
                     if response.status_code == 200:
                         agent.last_health_check = datetime.now().isoformat()
+                        logger.info(f"Agent {agent_id} health check passed after {attempt + 1} attempts")
                         return True
-            except:
-                pass
+                    else:
+                        logger.debug(f"Agent {agent_id} health check attempt {attempt + 1}: HTTP {response.status_code}")
+            except httpx.ConnectError:
+                logger.debug(f"Agent {agent_id} health check attempt {attempt + 1}: Connection refused (agent still starting)")
+            except Exception as e:
+                logger.debug(f"Agent {agent_id} health check attempt {attempt + 1}: {str(e)}")
             
-            await asyncio.sleep(1)
+            await asyncio.sleep(2)
         
         agent.status = AgentStatus.ERROR
-        agent.error_message = "Agent failed to respond to health checks"
+        agent.error_message = f"Agent failed to respond to health checks after {max_attempts} attempts"
+        logger.error(f"Agent {agent_id} health checks failed after {max_attempts} attempts")
         return False
     
     async def _update_health_status(self, agent_id: str):

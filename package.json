@@ -1,0 +1,24 @@
+{
+  "name": "agent-orchestration-system",
+  "version": "1.0.0",
+  "description": "A visual agent builder and orchestration platform",
+  "scripts": {
+    "dev": "concurrently \"npm run backend\" \"npm run frontend\"",
+    "start": "npm run dev",
+    "backend": "cd integration && ./start.sh",
+    "frontend": "cd agent-ui && npm run dev",
+    "build": "cd agent-ui && npm run build",
+    "lint": "cd agent-ui && npm run lint",
+    "install:all": "npm install && cd agent-ui && npm install && cd ../integration && pip install -r requirements.txt"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "."
+  },
+  "keywords": ["ai", "agents", "orchestration", "workflow", "automation"],
+  "author": "",
+  "license": "MIT"
+}

@@ -12,6 +12,7 @@ This is the main API server that:
 import logging
 import asyncio
 import uuid
+import time
 from typing import List, Dict, Any, Optional
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -317,15 +318,30 @@ async def websocket_endpoint(websocket: WebSocket):
     
     try:
         # Send initial state
-        await websocket.send_json({
-            "type": "initial_state",
-            "agents": [agent.dict() for agent in await agent_manager.list_agents()],
-            "connections": [conn.dict() for conn in message_router.get_connections()]
-        })
+        agents = await agent_manager.list_agents()
+        connections = message_router.get_connections()
         
-        # Keep connection alive
+        logger.info(f"📤 Sending initial state - {len(agents)} agents, {len(connections)} connections")
+        
+        initial_state = {
+            "type": "initial_state",
+            "agents": [agent.dict() for agent in agents],
+            "connections": [conn.dict() for conn in connections]
+        }
+        
+        logger.info(f"📤 Initial state payload: {initial_state}")
+        await websocket.send_json(initial_state)
+        
+        # Keep connection alive - wait for messages or just keep alive
         while True:
-            await websocket.receive_text()
+            try:
+                # Wait for any message with a timeout to keep connection alive
+                message = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
+                logger.info(f"📨 Received WebSocket message from client: {message}")
+            except asyncio.TimeoutError:
+                # Send a heartbeat to keep connection alive
+                await websocket.send_json({"type": "heartbeat", "timestamp": time.time()})
+                logger.debug("💓 Sent heartbeat to maintain WebSocket connection")
             
     except WebSocketDisconnect:
         websocket_connections.remove(websocket)
