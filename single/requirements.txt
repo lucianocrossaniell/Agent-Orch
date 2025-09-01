@@ -1,0 +1,18 @@
+# 🤖 Single Agent - Required Python Packages
+# These packages are needed to run the AI agent
+
+# Web server framework
+fastapi==0.103.2
+uvicorn==0.30.6
+
+# LangChain for AI agents
+langchain==0.1.0
+langchain-openai==0.0.5
+
+# Configuration and data handling
+pydantic==2.5.0
+pydantic-settings==2.1.0
+python-dotenv==1.0.0
+
+# Future features (for multi-agent setup)
+redis==5.0.1

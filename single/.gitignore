@@ -1,0 +1,52 @@
+# 🚫 Single Agent - Files to exclude from Git
+
+# 🔐 Sensitive files (NEVER commit these!)
+.env
+*.key
+*secret*
+
+# 🐍 Python files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+venv/
+env/
+ENV/
+.venv/
+
+# 📦 Package files
+*.egg-info/
+dist/
+build/
+*.egg
+
+# 📝 IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# 📊 Logs and databases
+*.log
+logs/
+*.db
+*.sqlite
+
+# 🧪 Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 🐳 Docker
+.dockerignore
+
+# 📱 OS generated files
+Thumbs.db
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
